@@ -304,12 +304,14 @@ function MyDebtsList({ refreshKey }: { refreshKey: number }) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data: settings } = await supabase.from('settings').select('value').eq('key', 'app').single();
+      const [{ data: settings }, { data }] = await Promise.all([
+        supabase.from('settings').select('value').eq('key', 'app').single(),
+        supabase.from('debts').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
+      ]);
+
       if (settings?.value?.delayTolerance !== undefined) {
         setDelayTolerance(settings.value.delayTolerance);
       }
-
-      const { data } = await supabase.from('debts').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
       setDebts((data || []).map(mapDebt));
       setLoading(false);
     };

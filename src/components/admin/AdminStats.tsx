@@ -15,12 +15,15 @@ export default function AdminStats() {
 
   useEffect(() => {
     const fetchData = async () => {
-      const { data: settings } = await supabase.from('settings').select('value').eq('key', 'app').single();
+      const [{ data: settings }, { data: rows }] = await Promise.all([
+        supabase.from('settings').select('value').eq('key', 'app').single(),
+        supabase.from('debts').select('*').order('created_at', { ascending: false }),
+      ]);
+
       if (settings?.value?.delayTolerance !== undefined) {
         setDelayTolerance(settings.value.delayTolerance);
       }
 
-      const { data: rows } = await supabase.from('debts').select('*').order('created_at', { ascending: false });
       setDebts((rows || []).map(row => ({
         id: row.id,
         employeeName: row.employee_name,
