@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus, Search } from 'lucide-react';
 
 export default function Combobox({
@@ -12,6 +13,7 @@ export default function Combobox({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(value);
+  const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { setQuery(value); }, [value]);
@@ -27,6 +29,22 @@ export default function Combobox({
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, [allowCreate, value]);
 
+  useEffect(() => {
+    if (!open) return;
+    const updateRect = () => {
+      if (!rootRef.current) return;
+      const r = rootRef.current.getBoundingClientRect();
+      setRect({ top: r.bottom + 8, left: r.left, width: r.width });
+    };
+    updateRect();
+    window.addEventListener('scroll', updateRect, true);
+    window.addEventListener('resize', updateRect);
+    return () => {
+      window.removeEventListener('scroll', updateRect, true);
+      window.removeEventListener('resize', updateRect);
+    };
+  }, [open]);
+
   const searchText = allowCreate ? value : query;
   const filtered = options.filter(o => o.toLowerCase().includes(searchText.toLowerCase()));
   const exactMatch = options.some(o => o.toLowerCase() === searchText.trim().toLowerCase());
@@ -36,6 +54,8 @@ export default function Combobox({
     setQuery(option);
     setOpen(false);
   };
+
+  const showDropdown = open && rect && (filtered.length > 0 || (allowCreate && searchText.trim() && !exactMatch) || (!allowCreate && searchText.trim() && filtered.length === 0));
 
   return (
     <div ref={rootRef} className="relative">
@@ -50,8 +70,11 @@ export default function Combobox({
         placeholder={placeholder}
         autoComplete="off"
       />
-      {open && (filtered.length > 0 || (allowCreate && searchText.trim() && !exactMatch) || (!allowCreate && searchText.trim() && filtered.length === 0)) && (
-        <div className="absolute z-20 mt-2 w-full glass-card rounded-2xl overflow-hidden shadow-xl max-h-56 overflow-y-auto">
+      {showDropdown && createPortal(
+        <div
+          style={{ position: 'fixed', top: rect.top, left: rect.left, width: rect.width, zIndex: 9999 }}
+          className="glass-card rounded-2xl overflow-hidden shadow-xl max-h-56 overflow-y-auto bg-white/95 dark:bg-gray-900/95"
+        >
           {filtered.map(option => (
             <button
               key={option}
@@ -75,7 +98,8 @@ export default function Combobox({
           {!allowCreate && searchText.trim() && filtered.length === 0 && (
             <div className="px-4 py-3 text-sm text-gray-400 text-center">لا توجد نتائج</div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

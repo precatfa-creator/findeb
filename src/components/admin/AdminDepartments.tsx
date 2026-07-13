@@ -89,7 +89,7 @@ export default function AdminDepartments() {
             whileTap={{ scale: 0.95 }}
             type="submit"
             disabled={saving || !newDept.trim()}
-            className="bg-primary text-white px-5 rounded-2xl font-bold shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all disabled:opacity-50 flex items-center gap-2"
+            className="bg-primary text-white px-5 py-3.5 rounded-2xl font-bold shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all disabled:opacity-50 flex items-center gap-2 whitespace-nowrap"
           >
             <Plus size={18} />
             إضافة
