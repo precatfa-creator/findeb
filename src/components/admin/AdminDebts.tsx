@@ -62,13 +62,15 @@ export default function AdminDebts() {
   const [filterRecipient, setFilterRecipient] = useState('');
   const [filterYear, setFilterYear] = useState('all');
   const [filterMonth, setFilterMonth] = useState('all');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
   const [cumulativeStatus, setCumulativeStatus] = useState('all');
   const [page, setPage] = useState(1);
   const [editingDebt, setEditingDebt] = useState<Debt | null>(null);
 
   useEffect(() => {
     setPage(1);
-  }, [viewMode, filterStatus, filterEmployee, filterRecipient, filterYear, filterMonth, cumulativeStatus]);
+  }, [viewMode, filterStatus, filterEmployee, filterRecipient, filterYear, filterMonth, filterDateFrom, filterDateTo, cumulativeStatus]);
 
   const fetchDebts = async () => {
     const { data } = await supabase.from('debts').select('*').order('created_at', { ascending: false });
@@ -154,6 +156,12 @@ export default function AdminDebts() {
       if (filterYear !== 'all' && date.getFullYear() !== Number(filterYear)) return false;
       if (filterMonth !== 'all' && date.getMonth() !== Number(filterMonth)) return false;
     }
+    if (filterDateFrom || filterDateTo) {
+      if (!d.receiptDate) return false;
+      const time = new Date(d.receiptDate).getTime();
+      if (filterDateFrom && time < new Date(`${filterDateFrom}T00:00:00`).getTime()) return false;
+      if (filterDateTo && time > new Date(`${filterDateTo}T23:59:59.999`).getTime()) return false;
+    }
     return true;
   });
 
@@ -188,13 +196,15 @@ export default function AdminDebts() {
     setFilterStatus(status);
     setFiltersOpen(true);
   };
-  const hasActiveFilters = !!filterEmployee || !!filterRecipient || filterStatus !== 'all' || filterYear !== 'all' || filterMonth !== 'all' || cumulativeStatus !== 'all';
+  const hasActiveFilters = !!filterEmployee || !!filterRecipient || filterStatus !== 'all' || filterYear !== 'all' || filterMonth !== 'all' || !!filterDateFrom || !!filterDateTo || cumulativeStatus !== 'all';
   const clearFilters = () => {
     setFilterEmployee('');
     setFilterRecipient('');
     setFilterStatus('all');
     setFilterYear('all');
     setFilterMonth('all');
+    setFilterDateFrom('');
+    setFilterDateTo('');
     setCumulativeStatus('all');
   };
 
@@ -304,7 +314,7 @@ export default function AdminDebts() {
                   </SelectField>
                 )}
               </div>
-              <div className="px-4 sm:px-5 pb-4 sm:pb-5 flex flex-col md:flex-row gap-4">
+              <div className="px-4 sm:px-5 pb-4 flex flex-col md:flex-row gap-4">
                 <SelectField value={filterYear} onChange={setFilterYear} icon={CalendarDays} className="md:max-w-xs flex-1">
                   <option value="all">كل السنوات</option>
                   {availableYears.map(y => (
@@ -317,6 +327,30 @@ export default function AdminDebts() {
                     <option key={m} value={i}>{m}</option>
                   ))}
                 </SelectField>
+              </div>
+              <div className="px-4 sm:px-5 pb-4 sm:pb-5 flex flex-col md:flex-row gap-4 items-center">
+                <div className="flex-1 w-full">
+                  <label className="block text-xs font-bold mb-1.5 text-gray-500 dark:text-gray-400">من تاريخ</label>
+                  <input
+                    type="date"
+                    value={filterDateFrom}
+                    onChange={e => setFilterDateFrom(e.target.value)}
+                    max={filterDateTo || undefined}
+                    className="glass-input w-full p-3.5 rounded-2xl"
+                    dir="ltr"
+                  />
+                </div>
+                <div className="flex-1 w-full">
+                  <label className="block text-xs font-bold mb-1.5 text-gray-500 dark:text-gray-400">إلى تاريخ</label>
+                  <input
+                    type="date"
+                    value={filterDateTo}
+                    onChange={e => setFilterDateTo(e.target.value)}
+                    min={filterDateFrom || undefined}
+                    className="glass-input w-full p-3.5 rounded-2xl"
+                    dir="ltr"
+                  />
+                </div>
               </div>
             </motion.div>
           )}
@@ -471,8 +505,8 @@ function ListView({
               <tr className="border-b border-gray-200/50 dark:border-gray-800/50 text-gray-500 dark:text-gray-400 text-xs">
                 <th className="text-right font-bold p-4">الموظف</th>
                 <th className="text-right font-bold p-4">المستلم</th>
-                <th className="text-right font-bold p-4">القسم</th>
                 <th className="text-right font-bold p-4">بإذن من</th>
+                <th className="text-right font-bold p-4">القسم</th>
                 <th className="text-right font-bold p-4">المبلغ (د.ل.)</th>
                 <th className="text-right font-bold p-4">تاريخ الاستلام</th>
                 <th className="text-right font-bold p-4">الحالة</th>
@@ -505,8 +539,8 @@ function ListView({
                         </button>
                       </td>
                       <td className="p-4 text-gray-700 dark:text-gray-300">{debt.recipient}</td>
-                      <td className="p-4 text-gray-600 dark:text-gray-400">{debt.department}</td>
                       <td className="p-4 text-gray-600 dark:text-gray-400">{debt.authorizedBy}</td>
+                      <td className="p-4 text-gray-600 dark:text-gray-400">{debt.department}</td>
                       <td className="p-4 font-black text-primary whitespace-nowrap" dir="rtl">{formatLYD(debt.amount)}</td>
                       <td className="p-4 text-gray-600 dark:text-gray-400 whitespace-nowrap" dir="ltr">
                         {formatDateTime(debt.receiptDate)}
