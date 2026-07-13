@@ -1,0 +1,77 @@
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap');
+@import "tailwindcss";
+
+/* Tailwind v4 defaults `dark:` to the OS prefers-color-scheme media query.
+   This app toggles a `.dark` class on <html> instead, so without this the
+   in-app light/dark switch does nothing and the OS setting silently wins. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Times New Roman", "Tajawal", serif;
+  --font-arabic: "Tajawal", sans-serif;
+  --color-primary: #CB2957;
+  --color-dark: #0d0d0d;
+  --color-gray-1: #DDDDDD;
+  --color-gray-2: #EEEEEE;
+}
+
+body {
+  font-family: var(--font-arabic);
+  direction: rtl;
+  background: radial-gradient(circle at top right, #fff5f7 0%, #f4f4f9 100%);
+  background-attachment: fixed;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+:is(.dark) body {
+  background: radial-gradient(circle at top right, #1a0810 0%, var(--color-dark) 100%);
+  color: var(--color-gray-2);
+}
+
+/* Glassmorphism 2.0 Utilities */
+.glass-card {
+  @apply bg-white/60 dark:bg-[#0d0d0d]/60 backdrop-blur-2xl border border-white/50 dark:border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.04)] dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.2)];
+}
+
+.glass-input {
+  @apply bg-white/50 dark:bg-white/5 backdrop-blur-xl border border-white/50 dark:border-white/10 focus:ring-2 focus:ring-primary/50 outline-none transition-all duration-300;
+}
+
+.glass-panel {
+  @apply bg-white/40 dark:bg-[#0d0d0d]/50 backdrop-blur-3xl border-b border-white/40 dark:border-white/10 shadow-sm;
+}
+
+/* Apple style scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(203, 41, 87, 0.3);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(203, 41, 87, 0.6);
+}
+
+/* Horizontal touch-swipe scroll areas (tab bars, wide tables): smooth
+   momentum on iOS, contained overscroll so a horizontal swipe doesn't bubble
+   into the page scroll, and no visible scrollbar since the swipe is the
+   affordance. touch-action allows both axes — these elements only overflow
+   horizontally, but pan-x alone blocks vertical drags from ever reaching the
+   page, trapping scroll for any finger-down that starts on the table/tab bar. */
+.hide-scrollbar {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
