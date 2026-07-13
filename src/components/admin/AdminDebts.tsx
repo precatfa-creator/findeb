@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../supabase';
 import { differenceInDays, format } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
-import { CheckCircle2, AlertCircle, Clock, Search, Filter, ChevronDown, List, LayoutGrid, Sigma, XCircle, X, Pencil } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Clock, Search, Filter, ChevronDown, List, LayoutGrid, Sigma, XCircle, X, Pencil, CalendarDays } from 'lucide-react';
 import SelectField from '../SelectField';
 import { useConfirmDialog } from '../ConfirmDialog';
 import { formatLYD, formatDateTime } from '../../lib/format';
@@ -60,13 +60,15 @@ export default function AdminDebts() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterEmployee, setFilterEmployee] = useState('');
   const [filterRecipient, setFilterRecipient] = useState('');
+  const [filterYear, setFilterYear] = useState('all');
+  const [filterMonth, setFilterMonth] = useState('all');
   const [cumulativeStatus, setCumulativeStatus] = useState('all');
   const [page, setPage] = useState(1);
   const [editingDebt, setEditingDebt] = useState<Debt | null>(null);
 
   useEffect(() => {
     setPage(1);
-  }, [viewMode, filterStatus, filterEmployee, filterRecipient, cumulativeStatus]);
+  }, [viewMode, filterStatus, filterEmployee, filterRecipient, filterYear, filterMonth, cumulativeStatus]);
 
   const fetchDebts = async () => {
     const { data } = await supabase.from('debts').select('*').order('created_at', { ascending: false });
@@ -134,9 +136,24 @@ export default function AdminDebts() {
     return diff > delayTolerance;
   };
 
+  const availableYears: number[] = [...new Set<number>(
+    debts.filter(d => d.receiptDate).map(d => new Date(d.receiptDate).getFullYear())
+  )].sort((a: number, b: number) => b - a);
+
+  const MONTHS = [
+    'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+    'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
+  ];
+
   const textFiltered = debts.filter(d => {
     if (filterEmployee && !d.employeeName?.includes(filterEmployee)) return false;
     if (filterRecipient && !d.recipient?.includes(filterRecipient)) return false;
+    if (filterYear !== 'all' || filterMonth !== 'all') {
+      if (!d.receiptDate) return false;
+      const date = new Date(d.receiptDate);
+      if (filterYear !== 'all' && date.getFullYear() !== Number(filterYear)) return false;
+      if (filterMonth !== 'all' && date.getMonth() !== Number(filterMonth)) return false;
+    }
     return true;
   });
 
@@ -171,11 +188,13 @@ export default function AdminDebts() {
     setFilterStatus(status);
     setFiltersOpen(true);
   };
-  const hasActiveFilters = !!filterEmployee || !!filterRecipient || filterStatus !== 'all' || cumulativeStatus !== 'all';
+  const hasActiveFilters = !!filterEmployee || !!filterRecipient || filterStatus !== 'all' || filterYear !== 'all' || filterMonth !== 'all' || cumulativeStatus !== 'all';
   const clearFilters = () => {
     setFilterEmployee('');
     setFilterRecipient('');
     setFilterStatus('all');
+    setFilterYear('all');
+    setFilterMonth('all');
     setCumulativeStatus('all');
   };
 
@@ -284,6 +303,20 @@ export default function AdminDebts() {
                     <option value="cancelled">ملغاة</option>
                   </SelectField>
                 )}
+              </div>
+              <div className="px-4 sm:px-5 pb-4 sm:pb-5 flex flex-col md:flex-row gap-4">
+                <SelectField value={filterYear} onChange={setFilterYear} icon={CalendarDays} className="md:max-w-xs flex-1">
+                  <option value="all">كل السنوات</option>
+                  {availableYears.map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </SelectField>
+                <SelectField value={filterMonth} onChange={setFilterMonth} icon={CalendarDays} className="md:max-w-xs flex-1">
+                  <option value="all">كل الأشهر</option>
+                  {MONTHS.map((m, i) => (
+                    <option key={m} value={i}>{m}</option>
+                  ))}
+                </SelectField>
               </div>
             </motion.div>
           )}

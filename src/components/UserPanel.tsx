@@ -242,24 +242,24 @@ function NewDebtForm({ fullName, onSubmitted }: { fullName: string | null, onSub
             </div>
 
             <div className="glass-card p-4 sm:p-6 rounded-3xl border border-white/40 dark:border-white/5 bg-gray-50/50 dark:bg-gray-800/20">
-              <label className="block text-sm font-bold mb-2 text-gray-700 dark:text-gray-300 ml-1">القسم</label>
+              <label className="block text-sm font-bold mb-2 text-gray-700 dark:text-gray-300 ml-1">بإذن من الإستاذ</label>
               <Combobox
-                value={department}
-                onChange={setDepartment}
-                options={departments}
-                placeholder="اختر القسم"
-                allowCreate={false}
+                value={authorizedBy}
+                onChange={setAuthorizedBy}
+                options={lists.authorizers}
+                placeholder="اختر أو اكتب الاسم"
               />
             </div>
           </div>
 
           <div className="glass-card p-4 sm:p-6 rounded-3xl border border-white/40 dark:border-white/5 bg-gray-50/50 dark:bg-gray-800/20">
-            <label className="block text-sm font-bold mb-2 text-gray-700 dark:text-gray-300 ml-1">بإذن من الإستاذ</label>
+            <label className="block text-sm font-bold mb-2 text-gray-700 dark:text-gray-300 ml-1">القسم</label>
             <Combobox
-              value={authorizedBy}
-              onChange={setAuthorizedBy}
-              options={lists.authorizers}
-              placeholder="اختر أو اكتب الاسم"
+              value={department}
+              onChange={setDepartment}
+              options={departments}
+              placeholder="اختر القسم"
+              allowCreate={false}
             />
           </div>
 
