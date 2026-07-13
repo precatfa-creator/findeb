@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../supabase';
-import { differenceInDays } from 'date-fns';
+import { differenceInDays, format } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
-import { CheckCircle2, AlertCircle, Clock, Search, Filter, ChevronDown, List, LayoutGrid, Sigma, Ban, XCircle, X } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Clock, Search, Filter, ChevronDown, List, LayoutGrid, Sigma, XCircle, X, Pencil } from 'lucide-react';
 import SelectField from '../SelectField';
 import { useConfirmDialog } from '../ConfirmDialog';
 import { formatLYD, formatDateTime } from '../../lib/format';
@@ -45,7 +45,7 @@ function statusConfigFor(debt: Debt, delayed: boolean) {
   return { icon: Clock, color: 'text-yellow-500', bg: 'bg-yellow-500/10', label: 'قيد الانتظار' };
 }
 
-type Actions = { onMarkPaid: (id: string) => void, onCancel: (id: string) => void };
+type Actions = { onStatusChange: (debt: Debt, status: Debt['status']) => void, onEditDate: (debt: Debt) => void };
 
 export default function AdminDebts() {
   const { confirm, notify } = useConfirmDialog();
@@ -62,6 +62,7 @@ export default function AdminDebts() {
   const [filterRecipient, setFilterRecipient] = useState('');
   const [cumulativeStatus, setCumulativeStatus] = useState('all');
   const [page, setPage] = useState(1);
+  const [editingDebt, setEditingDebt] = useState<Debt | null>(null);
 
   useEffect(() => {
     setPage(1);
@@ -91,36 +92,39 @@ export default function AdminDebts() {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  const handleMarkPaid = async (id: string) => {
-    const ok = await confirm({ message: 'هل أنت متأكد من تغيير الحالة إلى تم السداد؟', confirmText: 'تأكيد السداد' });
+  const handleStatusChange = async (debt: Debt, newStatus: Debt['status']) => {
+    if (newStatus === debt.status) return;
+    const messages: Record<Debt['status'], string> = {
+      paid: 'هل أنت متأكد من تغيير الحالة إلى تم السداد؟',
+      pending: 'هل أنت متأكد من إرجاع الحالة إلى قيد الانتظار؟',
+      cancelled: 'سيتم إلغاء هذا القيد مع الاحتفاظ به للمراجعة. هل تريد المتابعة؟',
+    };
+    const ok = await confirm({
+      title: newStatus === 'cancelled' ? 'إلغاء القيد' : undefined,
+      message: messages[newStatus],
+      confirmText: newStatus === 'paid' ? 'تأكيد السداد' : newStatus === 'cancelled' ? 'إلغاء القيد' : 'تأكيد',
+      variant: newStatus === 'cancelled' ? 'danger' : 'default',
+    });
     if (!ok) return;
     try {
       const { error } = await supabase.from('debts').update({
-        status: 'paid',
-        payment_date: new Date().toISOString()
-      }).eq('id', id);
+        status: newStatus,
+        payment_date: newStatus === 'paid' ? new Date().toISOString() : null,
+        cancelled_at: newStatus === 'cancelled' ? new Date().toISOString() : null,
+      }).eq('id', debt.id);
       if (error) throw error;
     } catch (err) {
       notify({ message: 'خطأ في التحديث', variant: 'error' });
     }
   };
 
-  const handleCancel = async (id: string) => {
-    const ok = await confirm({
-      title: 'إلغاء القيد',
-      message: 'سيتم إلغاء هذا القيد مع الاحتفاظ به للمراجعة. هل تريد المتابعة؟',
-      confirmText: 'إلغاء القيد',
-      variant: 'danger',
-    });
-    if (!ok) return;
+  const handleSaveDate = async (id: string, iso: string) => {
     try {
-      const { error } = await supabase.from('debts').update({
-        status: 'cancelled',
-        cancelled_at: new Date().toISOString()
-      }).eq('id', id);
+      const { error } = await supabase.from('debts').update({ receipt_date: iso }).eq('id', id);
       if (error) throw error;
+      setEditingDebt(null);
     } catch (err) {
-      notify({ message: 'خطأ في الإلغاء', variant: 'error' });
+      notify({ message: 'خطأ في تحديث التاريخ', variant: 'error' });
     }
   };
 
@@ -187,7 +191,7 @@ export default function AdminDebts() {
     { id: 'cumulative', label: 'تراكمي', icon: Sigma },
   ] as const;
 
-  const actions: Actions = { onMarkPaid: handleMarkPaid, onCancel: handleCancel };
+  const actions: Actions = { onStatusChange: handleStatusChange, onEditDate: setEditingDebt };
 
   return (
     <div className="space-y-6">
@@ -312,24 +316,28 @@ export default function AdminDebts() {
       {viewMode === 'cumulative' && <CumulativeView rows={pageCumulativeRows} />}
 
       <Pagination page={page} totalPages={totalPages} onChange={setPage} />
+
+      <AnimatePresence>
+        {editingDebt && (
+          <EditDateModal debt={editingDebt} onClose={() => setEditingDebt(null)} onSave={handleSaveDate} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-function ActionCell({ debt, onMarkPaid, onCancel }: { debt: Debt } & Actions) {
+function ActionCell({ debt, onStatusChange, onEditDate }: { debt: Debt } & Actions) {
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      {debt.status === 'pending' && (
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => onMarkPaid(debt.id)}
-          className="bg-primary text-white px-3 py-1.5 rounded-xl text-xs font-bold shadow-md shadow-primary/20 hover:shadow-primary/40 flex items-center gap-1.5 whitespace-nowrap"
-        >
-          <CheckCircle2 size={14} />
-          تأكيد السداد
-        </motion.button>
-      )}
+      <select
+        value={debt.status}
+        onChange={e => onStatusChange(debt, e.target.value as Debt['status'])}
+        className="glass-input text-xs font-bold rounded-xl px-2 py-1.5 cursor-pointer"
+      >
+        <option value="pending">قيد الانتظار</option>
+        <option value="paid">تم السداد</option>
+        <option value="cancelled">ملغي</option>
+      </select>
       {debt.status === 'paid' && (
         <div className="text-xs text-green-600 dark:text-green-400 font-bold whitespace-nowrap" dir="ltr">
           {formatDateTime(debt.paymentDate)}
@@ -340,23 +348,81 @@ function ActionCell({ debt, onMarkPaid, onCancel }: { debt: Debt } & Actions) {
           {formatDateTime(debt.cancelledAt)}
         </div>
       )}
-      {debt.status !== 'cancelled' && (
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => onCancel(debt.id)}
-          title="إلغاء القيد"
-          className="text-red-500 bg-red-500/10 px-2.5 py-1.5 rounded-xl text-xs font-bold hover:bg-red-500/20 flex items-center gap-1.5"
-        >
-          <Ban size={14} />
-        </motion.button>
-      )}
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => onEditDate(debt)}
+        title="تعديل تاريخ الاستلام"
+        className="text-gray-400 hover:text-primary bg-gray-500/10 hover:bg-primary/10 p-1.5 rounded-xl transition-colors"
+      >
+        <Pencil size={14} />
+      </motion.button>
     </div>
   );
 }
 
+function EditDateModal({ debt, onClose, onSave }: {
+  debt: Debt;
+  onClose: () => void;
+  onSave: (id: string, iso: string) => Promise<void>;
+}) {
+  const [value, setValue] = useState(format(new Date(debt.receiptDate), "yyyy-MM-dd'T'HH:mm"));
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    await onSave(debt.id, new Date(value).toISOString());
+    setSaving(false);
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.9, y: 10 }}
+        transition={{ type: 'spring', bounce: 0.3, duration: 0.4 }}
+        onClick={e => e.stopPropagation()}
+        className="glass-card w-full max-w-sm rounded-[2rem] p-6 sm:p-8 bg-white/90 dark:bg-gray-900/90"
+      >
+        <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5 bg-primary/10 text-primary">
+          <Pencil size={24} />
+        </div>
+        <h3 className="text-lg font-extrabold text-gray-900 dark:text-white mb-2">تعديل تاريخ الاستلام</h3>
+        <p className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-4">{debt.employeeName} — {debt.recipient}</p>
+        <input
+          type="datetime-local"
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          className="glass-input w-full p-4 rounded-2xl font-bold text-gray-800 dark:text-gray-200"
+          dir="ltr"
+        />
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={onClose}
+            className="flex-1 py-3 rounded-2xl font-bold text-sm bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10 transition-colors"
+          >
+            إلغاء
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 py-3 rounded-2xl font-bold text-sm text-white bg-primary hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >
+            {saving ? 'جاري الحفظ...' : 'حفظ'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 function ListView({
-  debts, isDelayed, totalAmount, onEmployeeClick, onStatusClick, onMarkPaid, onCancel,
+  debts, isDelayed, totalAmount, onEmployeeClick, onStatusClick, onStatusChange, onEditDate,
 }: {
   debts: Debt[], isDelayed: (d: string) => boolean, totalAmount: number,
   onEmployeeClick: (name: string) => void, onStatusClick: (status: string) => void,
@@ -423,7 +489,7 @@ function ListView({
                         </button>
                       </td>
                       <td className="p-4">
-                        <ActionCell debt={debt} onMarkPaid={onMarkPaid} onCancel={onCancel} />
+                        <ActionCell debt={debt} onStatusChange={onStatusChange} onEditDate={onEditDate} />
                       </td>
                     </motion.tr>
                   );
@@ -444,7 +510,7 @@ function ListView({
   );
 }
 
-function CardsView({ debts, isDelayed, onMarkPaid, onCancel }: { debts: Debt[], isDelayed: (d: string) => boolean } & Actions) {
+function CardsView({ debts, isDelayed, onStatusChange, onEditDate }: { debts: Debt[], isDelayed: (d: string) => boolean } & Actions) {
   if (debts.length === 0) return <div className="glass-card rounded-[2rem] overflow-hidden"><EmptyState /></div>;
 
   return (
@@ -501,7 +567,7 @@ function CardsView({ debts, isDelayed, onMarkPaid, onCancel }: { debts: Debt[], 
                 <div className="text-xs text-gray-500">
                   بإذن من: <span className="font-bold">{debt.authorizedBy}</span>
                 </div>
-                <ActionCell debt={debt} onMarkPaid={onMarkPaid} onCancel={onCancel} />
+                <ActionCell debt={debt} onStatusChange={onStatusChange} onEditDate={onEditDate} />
               </div>
             </motion.div>
           );

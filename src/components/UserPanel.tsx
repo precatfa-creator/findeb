@@ -87,20 +87,24 @@ function NewDebtForm({ fullName, onSubmitted }: { fullName: string | null, onSub
   const [receiptDate, setReceiptDate] = useState(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
   const [authorizedBy, setAuthorizedBy] = useState('');
 
-  const [lists, setLists] = useState({ recipients: [], departments: [], authorizers: [] });
+  const [lists, setLists] = useState({ recipients: [], authorizers: [] });
+  const [departments, setDepartments] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
 
   useEffect(() => {
     const fetchLists = async () => {
-      const { data } = await supabase.from('settings').select('value').eq('key', 'lists').single();
-      if (data) {
+      const [{ data: listsData }, { data: deptData }] = await Promise.all([
+        supabase.from('settings').select('value').eq('key', 'lists').single(),
+        supabase.from('settings').select('value').eq('key', 'departments').single(),
+      ]);
+      if (listsData) {
         setLists({
-          recipients: data.value.recipients || [],
-          departments: data.value.departments || [],
-          authorizers: data.value.authorizers || []
+          recipients: listsData.value.recipients || [],
+          authorizers: listsData.value.authorizers || []
         });
       }
+      setDepartments(deptData?.value || []);
     };
     fetchLists();
   }, []);
@@ -132,7 +136,6 @@ function NewDebtForm({ fullName, onSubmitted }: { fullName: string | null, onSub
       // Update lists
       const mergedLists = {
         recipients: [...new Set([...lists.recipients, recipient])],
-        departments: [...new Set([...lists.departments, department])],
         authorizers: [...new Set([...lists.authorizers, authorizedBy])]
       };
       const { error: listsErr } = await supabase.from('settings').update({ value: mergedLists }).eq('key', 'lists');
@@ -243,8 +246,9 @@ function NewDebtForm({ fullName, onSubmitted }: { fullName: string | null, onSub
               <Combobox
                 value={department}
                 onChange={setDepartment}
-                options={lists.departments}
-                placeholder="اختر أو اكتب القسم"
+                options={departments}
+                placeholder="اختر القسم"
+                allowCreate={false}
               />
             </div>
           </div>
@@ -293,11 +297,20 @@ function NewDebtForm({ fullName, onSubmitted }: { fullName: string | null, onSub
   );
 }
 
+const STATUS_TABS = [
+  { id: 'all', label: 'الكل' },
+  { id: 'pending', label: 'قيد الانتظار' },
+  { id: 'paid', label: 'تم السداد' },
+  { id: 'delayed', label: 'متأخر' },
+  { id: 'cancelled', label: 'ملغي' },
+] as const;
+
 function MyDebtsList({ refreshKey }: { refreshKey: number }) {
   const [debts, setDebts] = useState<Debt[]>([]);
   const [delayTolerance, setDelayTolerance] = useState(5);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [filterStatus, setFilterStatus] = useState<typeof STATUS_TABS[number]['id']>('all');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -316,12 +329,20 @@ function MyDebtsList({ refreshKey }: { refreshKey: number }) {
       setLoading(false);
     };
     fetchData();
-    setPage(1);
   }, [refreshKey]);
 
+  useEffect(() => { setPage(1); }, [refreshKey, filterStatus]);
+
   const isDelayed = (receiptDate: string) => differenceInDays(new Date(), new Date(receiptDate)) > delayTolerance;
-  const totalPages = Math.max(1, Math.ceil(debts.length / PAGE_SIZE));
-  const pageDebts = debts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const filteredDebts = debts.filter(d => {
+    if (filterStatus === 'all') return true;
+    if (filterStatus === 'delayed') return d.status === 'pending' && isDelayed(d.receiptDate);
+    return d.status === filterStatus;
+  });
+  const totalPages = Math.max(1, Math.ceil(filteredDebts.length / PAGE_SIZE));
+  const pageDebts = filteredDebts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const totalAmount = filteredDebts.reduce((sum, d) => sum + Number(d.amount || 0), 0);
 
   if (loading) return (
     <div className="flex justify-center p-10">
@@ -330,11 +351,32 @@ function MyDebtsList({ refreshKey }: { refreshKey: number }) {
   );
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-[2rem] overflow-hidden">
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+      <div className="flex flex-wrap gap-2 mb-4">
+        {STATUS_TABS.map(t => {
+          const isActive = filterStatus === t.id;
+          return (
+            <button
+              key={t.id}
+              onClick={() => setFilterStatus(t.id)}
+              className={`px-4 py-2 rounded-full text-xs font-bold transition-colors ${isActive ? 'bg-primary text-white shadow-md shadow-primary/20' : 'glass-card text-gray-600 dark:text-gray-300 hover:bg-white/30 dark:hover:bg-black/20'}`}
+            >
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="glass-card rounded-[2rem] overflow-hidden">
       {debts.length === 0 ? (
         <div className="py-16 text-center text-gray-400">
           <List size={48} className="mx-auto mb-4 opacity-20" />
           <p className="font-medium">لم تسجل أي ديون بعد</p>
+        </div>
+      ) : filteredDebts.length === 0 ? (
+        <div className="py-16 text-center text-gray-400">
+          <List size={48} className="mx-auto mb-4 opacity-20" />
+          <p className="font-medium">لا توجد ديون مطابقة لهذا الفلتر</p>
         </div>
       ) : (
         <div className="overflow-x-auto hide-scrollbar">
@@ -375,9 +417,17 @@ function MyDebtsList({ refreshKey }: { refreshKey: number }) {
                 );
               })}
             </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-gray-200/70 dark:border-gray-800/70 font-bold">
+                <td className="p-4 text-gray-700 dark:text-gray-300" colSpan={2}>الإجمالي</td>
+                <td className="p-4 text-primary font-black whitespace-nowrap" dir="rtl">{formatLYD(totalAmount)}</td>
+                <td colSpan={2}></td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       )}
+      </div>
       <Pagination page={page} totalPages={totalPages} onChange={setPage} />
     </motion.div>
   );

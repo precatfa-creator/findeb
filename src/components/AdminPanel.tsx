@@ -3,8 +3,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import AdminDebts from './admin/AdminDebts';
 import AdminStats from './admin/AdminStats';
 import AdminUsers from './admin/AdminUsers';
+import AdminDepartments from './admin/AdminDepartments';
 import AdminSettings from './admin/AdminSettings';
-import { FileText, PieChart, Users, Settings } from 'lucide-react';
+import { FileText, PieChart, Users, Building2, Settings } from 'lucide-react';
 
 export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState('debts');
@@ -13,6 +14,7 @@ export default function AdminPanel() {
     { id: 'debts', label: 'سجل الديون', icon: FileText },
     { id: 'stats', label: 'الاحصائيات', icon: PieChart },
     { id: 'users', label: 'الحسابات', icon: Users },
+    { id: 'departments', label: 'الأقسام', icon: Building2 },
     { id: 'settings', label: 'الإعدادات', icon: Settings },
   ];
 
@@ -67,6 +69,7 @@ export default function AdminPanel() {
             {activeTab === 'debts' && <AdminDebts />}
             {activeTab === 'stats' && <AdminStats />}
             {activeTab === 'users' && <AdminUsers />}
+            {activeTab === 'departments' && <AdminDepartments />}
             {activeTab === 'settings' && <AdminSettings />}
           </motion.div>
         </AnimatePresence>
