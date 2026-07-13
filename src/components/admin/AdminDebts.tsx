@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../supabase';
 import { differenceInDays } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
-import { CheckCircle2, AlertCircle, Clock, Search, Filter, ChevronDown, List, LayoutGrid, Sigma, Ban, XCircle } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Clock, Search, Filter, ChevronDown, List, LayoutGrid, Sigma, Ban, XCircle, X } from 'lucide-react';
 import SelectField from '../SelectField';
 import { useConfirmDialog } from '../ConfirmDialog';
 import { formatLYD, formatDateTime } from '../../lib/format';
@@ -167,6 +167,13 @@ export default function AdminDebts() {
     setFilterStatus(status);
     setFiltersOpen(true);
   };
+  const hasActiveFilters = !!filterEmployee || !!filterRecipient || filterStatus !== 'all' || cumulativeStatus !== 'all';
+  const clearFilters = () => {
+    setFilterEmployee('');
+    setFilterRecipient('');
+    setFilterStatus('all');
+    setCumulativeStatus('all');
+  };
 
   if (loading) return (
     <div className="flex justify-center p-10">
@@ -187,14 +194,28 @@ export default function AdminDebts() {
       {/* Filters */}
       <div className="glass-card rounded-[2rem] overflow-hidden">
         <div className="p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3">
-          <button
-            onClick={() => setFiltersOpen(o => !o)}
-            className="flex items-center gap-2 text-sm font-bold text-gray-700 dark:text-gray-300"
-          >
-            <Filter size={16} />
-            الفلاتر
-            <ChevronDown size={14} className={`transition-transform ${filtersOpen ? 'rotate-180' : ''}`} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setFiltersOpen(o => !o)}
+              className="flex items-center gap-2 text-sm font-bold text-gray-700 dark:text-gray-300"
+            >
+              <Filter size={16} />
+              الفلاتر
+              <ChevronDown size={14} className={`transition-transform ${filtersOpen ? 'rotate-180' : ''}`} />
+            </button>
+            <AnimatePresence>
+              {hasActiveFilters && (
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }}
+                  onClick={clearFilters}
+                  title="مسح الفلاتر"
+                  className="p-1.5 rounded-full bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors"
+                >
+                  <X size={14} />
+                </motion.button>
+              )}
+            </AnimatePresence>
+          </div>
 
           <div className="flex p-1 glass-card rounded-full gap-1">
             {viewOptions.map(opt => {
