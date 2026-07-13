@@ -157,6 +157,16 @@ export default function AdminDebts() {
   const totalPages = Math.max(1, Math.ceil(currentDataset.length / PAGE_SIZE));
   const pageDebts = filteredDebts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const pageCumulativeRows = cumulativeRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const filteredTotal = filteredDebts.reduce((sum, d) => sum + Number(d.amount || 0), 0);
+
+  const applyEmployeeFilter = (name: string) => {
+    setFilterEmployee(name);
+    setFiltersOpen(true);
+  };
+  const applyStatusClick = (status: string) => {
+    setFilterStatus(status);
+    setFiltersOpen(true);
+  };
 
   if (loading) return (
     <div className="flex justify-center p-10">
@@ -267,7 +277,16 @@ export default function AdminDebts() {
         </div>
       )}
 
-      {viewMode === 'list' && <ListView debts={pageDebts} isDelayed={isDelayed} {...actions} />}
+      {viewMode === 'list' && (
+        <ListView
+          debts={pageDebts}
+          isDelayed={isDelayed}
+          totalAmount={filteredTotal}
+          onEmployeeClick={applyEmployeeFilter}
+          onStatusClick={applyStatusClick}
+          {...actions}
+        />
+      )}
       {viewMode === 'cards' && <CardsView debts={pageDebts} isDelayed={isDelayed} {...actions} />}
       {viewMode === 'cumulative' && <CumulativeView rows={pageCumulativeRows} />}
 
@@ -315,7 +334,12 @@ function ActionCell({ debt, onMarkPaid, onCancel }: { debt: Debt } & Actions) {
   );
 }
 
-function ListView({ debts, isDelayed, onMarkPaid, onCancel }: { debts: Debt[], isDelayed: (d: string) => boolean } & Actions) {
+function ListView({
+  debts, isDelayed, totalAmount, onEmployeeClick, onStatusClick, onMarkPaid, onCancel,
+}: {
+  debts: Debt[], isDelayed: (d: string) => boolean, totalAmount: number,
+  onEmployeeClick: (name: string) => void, onStatusClick: (status: string) => void,
+} & Actions) {
   return (
     <div className="glass-card rounded-[2rem] overflow-hidden">
       {debts.length === 0 ? (
@@ -341,6 +365,7 @@ function ListView({ debts, isDelayed, onMarkPaid, onCancel }: { debts: Debt[], i
                   const delayed = debt.status === 'pending' && isDelayed(debt.receiptDate);
                   const statusConfig = statusConfigFor(debt, delayed);
                   const StatusIcon = statusConfig.icon;
+                  const statusFilterValue = debt.status === 'paid' ? 'paid' : debt.status === 'cancelled' ? 'cancelled' : delayed ? 'delayed' : 'pending';
 
                   return (
                     <motion.tr
@@ -350,7 +375,15 @@ function ListView({ debts, isDelayed, onMarkPaid, onCancel }: { debts: Debt[], i
                       exit={{ opacity: 0 }}
                       className={`border-b border-gray-100/50 dark:border-gray-800/30 hover:bg-white/30 dark:hover:bg-white/5 ${delayed ? 'bg-red-500/5' : ''} ${debt.status === 'cancelled' ? 'opacity-50' : ''}`}
                     >
-                      <td className="p-4 font-bold text-gray-900 dark:text-white">{debt.employeeName}</td>
+                      <td className="p-4 font-bold text-gray-900 dark:text-white">
+                        <button
+                          onClick={() => onEmployeeClick(debt.employeeName)}
+                          title="فلترة حسب هذا الموظف"
+                          className="hover:text-primary hover:underline transition-colors text-right"
+                        >
+                          {debt.employeeName}
+                        </button>
+                      </td>
                       <td className="p-4 text-gray-700 dark:text-gray-300">{debt.recipient}</td>
                       <td className="p-4 text-gray-600 dark:text-gray-400">{debt.department}</td>
                       <td className="p-4 text-gray-600 dark:text-gray-400">{debt.authorizedBy}</td>
@@ -359,10 +392,14 @@ function ListView({ debts, isDelayed, onMarkPaid, onCancel }: { debts: Debt[], i
                         {formatDateTime(debt.receiptDate)}
                       </td>
                       <td className="p-4">
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${statusConfig.bg} ${statusConfig.color}`}>
+                        <button
+                          onClick={() => onStatusClick(statusFilterValue)}
+                          title="فلترة حسب هذه الحالة"
+                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap hover:ring-2 hover:ring-offset-1 transition-all ${statusConfig.bg} ${statusConfig.color}`}
+                        >
                           <StatusIcon size={12} />
                           {statusConfig.label}
-                        </span>
+                        </button>
                       </td>
                       <td className="p-4">
                         <ActionCell debt={debt} onMarkPaid={onMarkPaid} onCancel={onCancel} />
@@ -372,6 +409,13 @@ function ListView({ debts, isDelayed, onMarkPaid, onCancel }: { debts: Debt[], i
                 })}
               </AnimatePresence>
             </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-gray-200/70 dark:border-gray-800/70 font-bold">
+                <td className="p-4 text-gray-700 dark:text-gray-300" colSpan={4}>الإجمالي</td>
+                <td className="p-4 text-primary font-black whitespace-nowrap" dir="rtl">{formatLYD(totalAmount)}</td>
+                <td colSpan={3}></td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       )}
