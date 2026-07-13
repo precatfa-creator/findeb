@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createApiApp, bootstrapAdmin } from '../src/server/apiApp';
+import { createApiApp, bootstrapAdmin } from '../src/server/apiApp.js';
 
 const app = createApiApp();
 let bootstrapped: Promise<void> | null = null;
